@@ -26,6 +26,9 @@ def green_letter_probability(word, gld):
 
     return result
 
+def sort_by_green_letter_probability(word_list, gld):
+    return sorted(word_list, key=lambda word: green_letter_probability(word, gld), reverse=True)
+
 def evaluate_guess(guess, secret):
     result = []
     for i in range(len(guess)):
@@ -52,7 +55,7 @@ def remove_letters_from_word_list(words, letters_to_remove):
         if not remove: result += [word] 
     return result
 
-def solve_wordle(words, secret, max_guesses = 50):
+def solve_wordle_random(words, secret, max_guesses = 50):
     guesses = 0
     
     while guesses < max_guesses:
@@ -75,6 +78,38 @@ def solve_wordle(words, secret, max_guesses = 50):
     # Oops, exceeded number of max guesses (this shouldn't happen with heuristics, I think)
     return False
 
+def solve_wordle_greedy(words, secret, max_guesses = 100):
+    guesses = 0
+    past_guesses = []
+
+    while guesses < max_guesses:
+        # Choose word
+        
+        gld = green_letter_distribution(words)
+        words_by_glp = sort_by_green_letter_probability(words, gld)
+        guess = ''
+        for i in range(len(words_by_glp)):
+            if words_by_glp[i] not in past_guesses:
+                guess = words_by_glp[i]
+                break
+
+        print(f'Guessing: {guess}...')
+        guesses += 1
+
+        # Evaluate guess
+        guess_result, is_correct = evaluate_guess(guess, secret)
+        if is_correct:
+            return guesses
+        else:
+            # Update word list
+            letters_to_remove = get_letters_to_remove(guess, guess_result)
+            words = remove_letters_from_word_list(words, letters_to_remove)
+            past_guesses += [guess]
+            print(f'    Wrong guess! Word list now has {len(words)} words.')
+
+    # Oops, exceeded number of max guesses (this shouldn't happen with heuristics, I think)
+    return False
+
 def print_glp(word, gld):
     glp = green_letter_probability(word, gld)
     print(f'The green letter probability for {word} is {glp}.')
@@ -84,7 +119,11 @@ if __name__ == '__main__':
     word_list, secret = gen_instance.generate_from_wordle_list()
     # result = solve_wordle(word_list, secret)
     # print(result)
-    gld = green_letter_distribution(word_list)
+    # gld = green_letter_distribution(word_list)
     
-    print_glp('ANDRE', gld)
-    print_glp('JULIA', gld)
+    # # print_glp('ANDRE', gld)
+    # # print_glp('JULIA', gld)
+
+    # print(sort_by_green_letter_probability(word_list, gld))
+    greedy_result = solve_wordle_greedy(word_list, secret)
+    print(f'Greedy solved in {greedy_result} guesses.')
