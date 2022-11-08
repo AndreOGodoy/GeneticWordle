@@ -55,14 +55,14 @@ def remove_letters_from_word_list(words, letters_to_remove):
         if not remove: result += [word] 
     return result
 
-def solve_wordle_random(words, secret, max_guesses = 50):
+def solve_wordle_random(words, secret):
     guesses = 0
     
-    while guesses < max_guesses:
+    while True:
         # Choose word
         # TODO: Implement choice heuristics, currently choosing at random
         guess = random.choice(words)
-        print(f'Guessing: {guess}...')
+        # print(f'Guessing: {guess}...')
         guesses += 1
 
         # Evaluate guess
@@ -73,16 +73,13 @@ def solve_wordle_random(words, secret, max_guesses = 50):
             # Update word list
             letters_to_remove = get_letters_to_remove(guess, guess_result)
             words = remove_letters_from_word_list(words, letters_to_remove)
-            print(f'    Wrong guess! Word list now has {len(words)} words.')
+            # print(f'    Wrong guess! Word list now has {len(words)} words.')
 
-    # Oops, exceeded number of max guesses (this shouldn't happen with heuristics, I think)
-    return False
-
-def solve_wordle_greedy(words, secret, max_guesses = 100):
+def solve_wordle_greedy(words, secret):
     guesses = 0
     past_guesses = []
 
-    while guesses < max_guesses:
+    while True:
         # Choose word
         
         gld = green_letter_distribution(words)
@@ -93,7 +90,7 @@ def solve_wordle_greedy(words, secret, max_guesses = 100):
                 guess = words_by_glp[i]
                 break
 
-        print(f'Guessing: {guess}...')
+        # print(f'Guessing: {guess}...')
         guesses += 1
 
         # Evaluate guess
@@ -105,14 +102,11 @@ def solve_wordle_greedy(words, secret, max_guesses = 100):
             letters_to_remove = get_letters_to_remove(guess, guess_result)
             words = remove_letters_from_word_list(words, letters_to_remove)
             past_guesses += [guess]
-            print(f'    Wrong guess! Word list now has {len(words)} words.')
+            # print(f'    Wrong guess! Word list now has {len(words)} words.')
 
-    # Oops, exceeded number of max guesses (this shouldn't happen with heuristics, I think)
-    return False
-
-def print_glp(word, gld):
-    glp = green_letter_probability(word, gld)
-    print(f'The green letter probability for {word} is {glp}.')
+# def print_glp(word, gld):
+#     glp = green_letter_probability(word, gld)
+#     print(f'The green letter probability for {word} is {glp}.')
 
 
 if __name__ == '__main__':
