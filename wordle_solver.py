@@ -30,6 +30,10 @@ def green_letter_probability(word, gld):
 
     return result / len(word)
 
+# def print_glp(word, gld):
+#     glp = green_letter_probability(word, gld)
+#     print(f'The green letter probability for {word} is {glp}.')
+
 def sort_by_green_letter_probability(word_list, gld):
     return sorted(word_list, key=lambda word: green_letter_probability(word, gld), reverse=True)
 
@@ -51,10 +55,10 @@ def update_obtained_info(guess, guess_result, info: WordleInfo):
 
     return info
     
-def print_obtained_info(info: WordleInfo):
-    print(f'Current green results: {info.green_result}')
-    print(f'Current yellow letters: {info.yellow_letters}')
-    print(f'Current gray letters: {info.gray_letters}')
+# def print_obtained_info(info: WordleInfo):
+#     print(f'Current green results: {info.green_result}')
+#     print(f'Current yellow letters: {info.yellow_letters}')
+#     print(f'Current gray letters: {info.gray_letters}')
 
 # Expected green correctness ([0, 1]):
 # How much do we expect the word to have green letters based on the accumulated information
@@ -80,10 +84,10 @@ def get_expected_gray_correctness(word, info: WordleInfo):
         if word[i] not in info.gray_letters: result += 1
     return result / len(word)
 
-def print_guess_score(guess, info: WordleInfo):
-    print(f'[{guess}] Expected green correctness: {get_expected_green_correctness(guess, info)}')
-    print(f'[{guess}] Expected yellow correctness: {get_expected_yellow_correctness(guess, info)}')
-    print(f'[{guess}] Expected gray correctness: {get_expected_gray_correctness(guess, info)}')
+# def print_guess_score(guess, info: WordleInfo):
+#     print(f'[{guess}] Expected green correctness: {get_expected_green_correctness(guess, info)}')
+#     print(f'[{guess}] Expected yellow correctness: {get_expected_yellow_correctness(guess, info)}')
+#     print(f'[{guess}] Expected gray correctness: {get_expected_gray_correctness(guess, info)}')
 
 def evaluate_guess(guess, secret):
     result = []
@@ -111,6 +115,7 @@ def remove_letters_from_word_list(words, letters_to_remove):
         if not remove: result += [word] 
     return result
 
+# Random heuristic
 def solve_wordle_random(words, secret):
     guesses = 0
     
@@ -118,7 +123,7 @@ def solve_wordle_random(words, secret):
         # Choose word
         # TODO: Implement choice heuristics, currently choosing at random
         guess = random.choice(words)
-        # print(f'Guessing: {guess}...')
+        # print(f'[RANDOM] Guessing: {guess}...')
         guesses += 1
 
         # Evaluate guess
@@ -131,14 +136,13 @@ def solve_wordle_random(words, secret):
             words = remove_letters_from_word_list(words, letters_to_remove)
             # print(f'    Wrong guess! Word list now has {len(words)} words.')
 
+# Greedy GLP-based heuristic
 def solve_wordle_greedy(words, secret):
     guesses = 0
     past_guesses = []
-    info = WordleInfo()
 
     while True:
         # Choose word
-        
         gld = green_letter_distribution(words)
         words_by_glp = sort_by_green_letter_probability(words, gld)
         guess = ''
@@ -147,8 +151,7 @@ def solve_wordle_greedy(words, secret):
                 guess = words_by_glp[i]
                 break
 
-        print(f'Guessing: {guess}...')
-        print_guess_score(guess, info)
+        print(f'[GREEDY] Guessing: {guess}...')
         guesses += 1
 
         # Evaluate guess
@@ -156,29 +159,51 @@ def solve_wordle_greedy(words, secret):
         if is_correct:
             return guesses
         else:
-            # Update word list
+            # Update word list for next iteration
             letters_to_remove = get_letters_to_remove(guess, guess_result)
             words = remove_letters_from_word_list(words, letters_to_remove)
             past_guesses += [guess]
-            info = update_obtained_info(guess, guess_result, info)
-            print_obtained_info(info)
             # print(f'    Wrong guess! Word list now has {len(words)} words.')
 
-# def print_glp(word, gld):
-#     glp = green_letter_probability(word, gld)
-#     print(f'The green letter probability for {word} is {glp}.')
+# Genetic algorithm heuristic and related functions
+def genetic_word_score(word, problem_info, w_egreen_correctness = 1, w_eyellow_correctness = 1, w_egray_correctness = 1):
+    egreen = get_expected_green_correctness(word, problem_info)
+    eyellow = get_expected_yellow_correctness(word, problem_info)
+    egray = get_expected_gray_correctness(word, problem_info)
+    return egreen * w_egreen_correctness + eyellow * w_eyellow_correctness + egray * w_egray_correctness
 
+def genetic_select_next_guess(word_list, problem_info, past_guesses, w_egreen_correctness = 1, w_eyellow_correctness = 1, w_egray_correctness = 1):
+    words_by_score = sorted(word_list, key=lambda word: genetic_word_score(word, problem_info), reverse=True)
+    for i in range(len(words_by_score)):
+            if words_by_score[i] not in past_guesses:
+                return words_by_score[i]
+    return ''   # Shouldn't happen
+
+def solve_wordle_genetic(words, secret):
+    guesses = 0
+    past_guesses = []
+    info = WordleInfo()
+
+    while True:
+        # Choose word
+        # TODO: Currently only performs a greedy seach on expected score metrics. Genetic part still unimplemented.
+        guess = genetic_select_next_guess(words, info, past_guesses, 1, 1, 1)
+        print(f'[GENETIC] Guessing: {guess}...')
+        guesses += 1
+
+        # Evaluate guess
+        guess_result, is_correct = evaluate_guess(guess, secret)
+        if is_correct:
+            return guesses
+        else:
+            # Update problem info for next iteration
+            past_guesses += [guess]
+            info = update_obtained_info(guess, guess_result, info)
 
 if __name__ == '__main__':
     word_list, secret = gen_instance.generate_from_wordle_list()
-    # result = solve_wordle(word_list, secret)
-    # print(result)
-    # gld = green_letter_distribution(word_list)
-    
-    # # print_glp('ANDRE', gld)
-    # # print_glp('JULIA', gld)
 
-    # print(sort_by_green_letter_probability(word_list, gld))
-    # greedy_result = solve_wordle_greedy(word_list, secret)
-    greedy_result = solve_wordle_greedy(word_list, word_list[0])
+    greedy_result = solve_wordle_greedy(word_list, secret)
     print(f'Greedy solved in {greedy_result} guesses.')
+    genetic_result = solve_wordle_genetic(word_list, secret)
+    print(f'Genetic solved in {genetic_result} guesses.')
