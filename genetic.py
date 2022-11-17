@@ -16,7 +16,7 @@ ELITISM = 10 # Quantos passarão diretamente para a próxima geração
 
 @dataclass
 class Individual:
-    fitness: float
+    fitness: float = 0
     gene: List[float] = field(default_factory=generate_random_gene)
     
     def green_weigth(self):
@@ -36,14 +36,14 @@ class Individual:
         return Individual(gene=new_gene)
 
     def crossover(self, other: 'Individual') -> 'Individual':
-        new_gene = [0] * len(self.gene)
+        new_gene = [0.0] * len(self.gene)
         
         for gene_pos in range(len(self.gene)):
             new_gene[gene_pos] = self.gene[gene_pos] if random() < 0.5 else other.gene[gene_pos]
 
         new_individual = Individual(gene=new_gene)
         if random() < MUT_PROB:
-            new_individual = self.mutate(new_individual)
+            new_individual = new_individual.mutate()
 
         return new_individual
 
@@ -51,18 +51,18 @@ class Individual:
         new_individual = Individual(gene=self.gene.copy())
 
         if random() < MUT_PROB:
-            new_individual = self.mutate(new_individual)
+            new_individual = new_individual.mutate()
         
         return new_individual
 
 class Population:
     size: int
     individuals: List[Individual]
+    best: Individual | None
 
     def __init__(self, size: int):
         for _ in range(size):
-            individual = Individual()
-            self.individuals.push(Individual())
+            self.individuals.append(Individual())
         
     def _update_fitness(self, ind: Individual, word, problem_info):
         ind.fitness = genetic_word_score(word, problem_info, ind.green_weigth(), ind.yellow_weigth(), ind.gray_weigth())
@@ -72,14 +72,14 @@ class Population:
         fit_func = lambda ind: self._update_fitness(ind, word, problem_info)
         self.individuals = list(map(fit_func, self.individuals))
 
-        best_n = heapq.nlargest(ELITISM, self.individuals)
+        best_n = heapq.nlargest(ELITISM, self.individuals, key=lambda ind: ind.fitness)
         self.best = best_n[0]
 
         new_individuals = best_n.copy()
 
         while len(new_individuals) < POP_SIZE:
             a = self.individuals[randint(0, len(self.individuals)-1)]
-            if CROSS_PROB:
+            if random() < CROSS_PROB:
                 b = None 
                 while b is None or b == a: 
                     b = self.individuals[randint(0, len(self.individuals)-1)]
