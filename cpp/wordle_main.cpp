@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <inttypes.h>
+#include <algorithm>
 
 using namespace std;
 
@@ -137,19 +138,21 @@ float expected_gray(const string& word, const WordleCurrentInfo& info)
     float result = 0.f;
     for(int i = 0; i < word.size(); i++)
     {
+        bool found = false;
         for(int j = 0; j < info.gray_letters.size(); j++)
         {
             if(word[i] == info.gray_letters[j])
             {
-                result += 1.f;
+                found = true;
                 break;
             }
         }
+        if(!found) result += 1.f;
     }
     return result / (float)word.size();
 }
 
-float score_word(const string& word, const string& secret, const WordleCurrentInfo& info, const float& w_green, const float& w_yellow, const float& w_gray)
+float score_word(const string& word, const WordleCurrentInfo& info, const float& w_green, const float& w_yellow, const float& w_gray)
 {
     float egreen = expected_green(word, info);
     float eyellow = expected_yellow(word, info);
@@ -164,7 +167,17 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
     for(int i = 0; i < instance.word_list->size(); i++)
     {
         string word = instance.get_word(i);
-        float score = score_word(word, instance.get_word(instance.secret), info, w_green, w_yellow, w_gray);
+        float score = score_word(word, info, w_green, w_yellow, w_gray);
+        // if(word == string("adage"))
+        // {
+        //     printf("Word %d (%s) has score %.4f\n", i, instance.get_word(i).c_str(), score);
+        //     float debug_green = expected_green(word, info);
+        //     float debug_yellow = expected_yellow(word, info);
+        //     float debug_gray = expected_gray(word, info);
+        //     printf("\tgreen %.4f * %.4f\n", w_green, debug_green);
+        //     printf("\tyellow %.4f * %.4f\n", w_yellow, debug_yellow);
+        //     printf("\tgray %.4f * %.4f\n", w_gray, debug_gray);
+        // }
         if(score > best_score)
         {
             bool found = false;
@@ -173,6 +186,7 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
                 if(i == info.past_guesses[j])
                 {
                     found = true;
+                    //printf("Already guessed %d (%s)\n", i, instance.get_word(i).c_str());
                     break;
                 }
             }
@@ -180,13 +194,15 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
             {
                 guess_index = i;
                 best_score = score;
+                //printf("Found word %d (%s) with score %.4f\n", i, instance.get_word(i).c_str(), best_score);
             }
         }
     }
+    // printf("Selected guess %d (%s - %.4f)\n", guess_index, instance.get_word(guess_index).c_str(), best_score);
     return guess_index;
 }
 
-void update_wordle_info(const WordleInstance& instance, const int& guess, WordleCurrentInfo* out_info)
+bool update_wordle_info(const WordleInstance& instance, const int& guess, WordleCurrentInfo* out_info)
 {
     // Updating past guesses
     out_info->past_guesses.push_back(guess);
@@ -194,11 +210,13 @@ void update_wordle_info(const WordleInstance& instance, const int& guess, Wordle
     string secret_word = instance.get_word(instance.secret);
     string guess_word = instance.get_word(guess);
     string eval = evaluate_guess(guess_word, secret_word);
+    bool result = true;
     // Updating discovered result
     {
         for(int i = 0; i < eval.size(); i++)
         {
             if(eval[i] == 'G') out_info->current_result[i] = guess_word[i];
+            else result = false;
         }
     }
 
@@ -234,6 +252,8 @@ void update_wordle_info(const WordleInstance& instance, const int& guess, Wordle
             }
         }
     }
+
+    return result;
 }
 
 // GENETIC
@@ -241,34 +261,93 @@ void update_wordle_info(const WordleInstance& instance, const int& guess, Wordle
 struct Individual
 {
     float w[3];
+    float fitness = 0.f;
 };
+
+bool compare_fitness(const Individual& a, const Individual& b)
+{
+    return a.fitness < b.fitness;
+}
 
 Individual new_random_individual()
 {
     Individual guy;
-    guy.w[0] = dist_uniform(0.f, 1.f);
-    guy.w[1] = dist_uniform(0.f, 1.f - guy.w[0]);
-    guy.w[2] = 1.f - guy.w[0] - guy.w[1];
+    // guy.w[0] = dist_uniform(0.f, 1.f);
+    // guy.w[1] = dist_uniform(0.f, 1.f - guy.w[0]);
+    // guy.w[2] = 1.f - guy.w[0] - guy.w[1];
+    guy.w[0] = dist_uniform();
+    guy.w[1] = dist_uniform();
+    guy.w[2] = dist_uniform();
     return guy;
+}
+
+Individual crossover(const Individual& parent_1, const Individual& parent_2)
+{
+    Individual new_guy;
+    int genes_from_first = (int)dist_uniform(0, 3);
+    for(int i = 0; i < 3; i++)
+    {
+        if(genes_from_first)
+        {
+            new_guy.w[i] = parent_1.w[i];
+            genes_from_first--;
+        }
+        else
+        {
+            new_guy.w[i] = parent_2.w[i];
+        }
+    }
+    return new_guy;
+}
+
+Individual mutate(const Individual& parent)
+{
+    Individual new_guy = parent;
+    int mutation_point = (int)dist_uniform(0, 3);
+    new_guy.w[mutation_point] = dist_uniform();
+    
+    return new_guy;
 }
 
 int solve_wordle(const WordleInstance& instance, const Individual& guy)
 {
+    // TODO(caio): Continue here. For some reason, wordle solving is taking waaaay too many tries.
     int result = 0;
     WordleCurrentInfo info;
     while(true)
     {
         result++;
-        int next_guess = select_next_guess(instance, info, guy.w[0], guy.w[1], guy.w[2]);
-        string eval = evaluate_guess(instance.get_word(next_guess), instance.get_word(instance.secret));
-        if(eval == string("GGGGG")) return result;
+        int next_guess = -1;
+        bool already_found = true;
+        for(int i = 0; i < info.current_result.size(); i++)
+        {
+            if(info.current_result[i] == '-')
+            {
+                already_found = false;
+                break;
+            }
+        }
+        if(already_found)
+        {
+            //printf("\t Individual [%.4f, %.4f, %.4f] solved wordle (%s) in %d tries\n", guy.w[0], guy.w[1], guy.w[2], instance.get_word(instance.secret).c_str(), result);
+            return result;
+        }
+        else
+        {
+            next_guess = select_next_guess(instance, info, guy.w[0], guy.w[1], guy.w[2]);
+            if(next_guess == instance.secret)
+            {
+                //printf("\t Individual [%.4f, %.4f, %.4f] solved wordle (%s) in %d tries\n", guy.w[0], guy.w[1], guy.w[2], instance.get_word(instance.secret).c_str(), result);
+                return result;
+            }
+        }
 
         update_wordle_info(instance, next_guess, &info);
     }
     return result;
 }
 
-float train(const vector<WordleInstance>& training_instances, const Individual& guy)
+float train_individual(const vector<WordleInstance>& training_instances, const Individual& guy)
 {
     float result = 0.f;
     for(int i = 0; i < training_instances.size(); i++)
@@ -279,17 +358,106 @@ float train(const vector<WordleInstance>& training_instances, const Individual& 
     return result / (float)training_instances.size();
 }
 
+vector<Individual> new_random_population(int count)
+{
+    vector<Individual> result;
+    for(int i = 0; i < count; i++)
+    {
+        result.push_back(new_random_individual());
+    }
+    return result;
+}
+
+void train_population(vector<Individual>* population, const vector<WordleInstance>& training_instances)
+{// Calculate fitness
+    for(int i = 0; i < population->size(); i++)
+    {
+        Individual& guy = (*population)[i];
+        guy.fitness = train_individual(training_instances, guy);
+    }
+}
+
+vector<Individual> get_elite(const vector<Individual>& population, int count)
+{
+    vector<Individual> result = population;
+    sort(result.begin(), result.end(), compare_fitness);
+    result.resize(count);
+    return result;
+}
+
+vector<Individual> advance_population(const vector<Individual>& population, const vector<WordleInstance>& training_instances, const int& elite_count, const float& cross_prob, const float& mut_prob)
+{
+    // Select elite based on fitness
+    vector<Individual> next_population = get_elite(population, elite_count);
+
+    // Repopulate
+    while(next_population.size() < population.size())
+    {
+        // TODO(caio): Maybe we should select these guys with fitness roulette
+        int selected_guy = (int)dist_uniform(0, population.size());
+        Individual guy = population[selected_guy];
+
+        float sample = dist_uniform();
+        if(sample < cross_prob)
+        {
+            Individual other = population[(int)dist_uniform(0, population.size())];
+            guy = crossover(guy, other);
+        }
+        sample = dist_uniform();
+        if(sample < mut_prob)
+        {
+            guy = mutate(guy);
+        }
+
+        next_population.push_back(guy);
+    }
+
+    return next_population;
+}
+
+void print_population_stats(const vector<Individual>& population, const int& index)
+{
+    float avg = 0.f;
+    float best = 0.f;
+    for(int i = 0; i < population.size(); i++)
+    {
+        const Individual& guy = population[i];
+        avg += guy.fitness;
+        if(i == 0 || guy.fitness < best) best = guy.fitness;
+    }
+    avg /= (float)population.size();
+    printf("Population %d: BEST %.4f | AVG %.4f\n", index, best, avg);
+}
+
 int main(int argc, char** argv)
 {
     wordle_words = read_word_list_file("../wordle_words.txt");
 
-    auto training_set = generate_training_set(&wordle_words, 100);
+    auto training_set = generate_training_set(&wordle_words, 50);
 
-    Individual guy = new_random_individual();
-    printf("Individual green %.4f, yellow %.4f, gray %.4f\n", guy.w[0], guy.w[1], guy.w[2]);
+    auto population = new_random_population(200);
+    train_population(&population, training_set);
+    print_population_stats(population, 0);
 
-    float guy_result = train(training_set, guy);
-    printf("Individual finished training, average result: %.4f\n", guy_result);
+    for(int i = 0; i < 50; i++)
+    {
+        population = advance_population(population, training_set, 20, 0.9f, 0.1f);
+        train_population(&population, training_set);
+        print_population_stats(population, i + 1);
+    }
 
+    // auto guy = new_random_individual();
+    // auto instance = generate_wordle_instance(&wordle_words);
+    // int result = solve_wordle(instance, guy);
+
+    // Individual guy;
+    // guy.w[0] = 0.5f; guy.w[1] = 0.2f; guy.w[2] = 0.1f;
+    // WordleInstance test_instance =
+    // {
+    //     &wordle_words,
+    //     61
+    // };
+    // int tries = solve_wordle(test_instance, guy);
+    // printf("Guy solved in %d tries\n", tries);
     return 0;
 }
