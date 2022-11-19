@@ -221,7 +221,7 @@ int solve_wordle_greedy(const WordleInstance& instance)
         int guess = get_best_glp(word_list, past_guesses);
         past_guesses.push_back(word_list[guess]);
         string guess_word = word_list[guess];
-        printf("[GREEDY] Guessing word %s...\n", guess_word.c_str());
+        // printf("[GREEDY] Guessing word %s...\n", guess_word.c_str());
 
         result++;
 
@@ -307,16 +307,6 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
     {
         string word = instance.get_word(i);
         float score = score_word(word, info, w_green, w_yellow, w_gray);
-        // if(word == string("adage"))
-        // {
-        //     printf("Word %d (%s) has score %.4f\n", i, instance.get_word(i).c_str(), score);
-        //     float debug_green = expected_green(word, info);
-        //     float debug_yellow = expected_yellow(word, info);
-        //     float debug_gray = expected_gray(word, info);
-        //     printf("\tgreen %.4f * %.4f\n", w_green, debug_green);
-        //     printf("\tyellow %.4f * %.4f\n", w_yellow, debug_yellow);
-        //     printf("\tgray %.4f * %.4f\n", w_gray, debug_gray);
-        // }
         if(score > best_score)
         {
             bool found = false;
@@ -325,7 +315,6 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
                 if(i == info.past_guesses[j])
                 {
                     found = true;
-                    //printf("Already guessed %d (%s)\n", i, instance.get_word(i).c_str());
                     break;
                 }
             }
@@ -333,11 +322,9 @@ int select_next_guess(const WordleInstance& instance, const WordleCurrentInfo& i
             {
                 guess_index = i;
                 best_score = score;
-                //printf("Found word %d (%s) with score %.4f\n", i, instance.get_word(i).c_str(), best_score);
             }
         }
     }
-    // printf("Selected guess %d (%s - %.4f)\n", guess_index, instance.get_word(guess_index).c_str(), best_score);
     return guess_index;
 }
 
@@ -409,9 +396,6 @@ bool compare_fitness(const Individual& a, const Individual& b)
 Individual new_random_individual()
 {
     Individual guy;
-    // guy.w[0] = dist_uniform(0.f, 1.f);
-    // guy.w[1] = dist_uniform(0.f, 1.f - guy.w[0]);
-    // guy.w[2] = 1.f - guy.w[0] - guy.w[1];
     guy.w[0] = dist_uniform();
     guy.w[1] = dist_uniform();
     guy.w[2] = dist_uniform();
@@ -466,7 +450,6 @@ int solve_wordle_genetic(const WordleInstance& instance, const Individual& guy)
         }
         if(already_found)
         {
-            //printf("\t Individual [%.4f, %.4f, %.4f] solved wordle (%s) in %d tries\n", guy.w[0], guy.w[1], guy.w[2], instance.get_word(instance.secret).c_str(), result);
             return result;
         }
         else
@@ -474,7 +457,6 @@ int solve_wordle_genetic(const WordleInstance& instance, const Individual& guy)
             next_guess = select_next_guess(instance, info, guy.w[0], guy.w[1], guy.w[2]);
             if(next_guess == instance.secret)
             {
-                //printf("\t Individual [%.4f, %.4f, %.4f] solved wordle (%s) in %d tries\n", guy.w[0], guy.w[1], guy.w[2], instance.get_word(instance.secret).c_str(), result);
                 return result;
             }
         }
@@ -552,44 +534,76 @@ vector<Individual> advance_population(const vector<Individual>& population, cons
     return next_population;
 }
 
-void print_population_stats(const vector<Individual>& population, const int& index)
+int print_population_stats(const vector<Individual>& population, const int& index)
 {
     float avg = 0.f;
     float best = 0.f;
+    int result = 0;
     for(int i = 0; i < population.size(); i++)
     {
         const Individual& guy = population[i];
         avg += guy.fitness;
-        if(i == 0 || guy.fitness < best) best = guy.fitness;
+        if(i == 0 || guy.fitness < best)
+        {
+            best = guy.fitness;
+            result = i;
+        }
     }
     avg /= (float)population.size();
-    printf("Population %d: BEST %.4f | AVG %.4f\n", index, best, avg);
+    printf("%d,%.4f,%.4f\n", index, best, avg);
+
+    return result;
 }
 
 int main(int argc, char** argv)
 {
-    wordle_words = read_word_list_file("../wordle_words.txt");
+    wordle_words = read_word_list_file(argv[argc-1]);
 
-    WordleInstance instance =
+    if(strcmp(argv[1], "train") == 0)
     {
-        &wordle_words,
-        74
-    };
-    int result = solve_wordle_greedy(instance);
-    printf("[GREEDY] Solved in %d guesses.\n", result);
+        // Perform training routine. Returns best individual found at last population.
+        int training_set_count = atoi(argv[2]);
+        int pop_size = atoi(argv[3]);
+        int elite_count = atoi(argv[4]);
+        int iterations = atoi(argv[5]);
+        float cross_prob = strtof(argv[6], NULL);
+        float mut_prob = strtof(argv[7], NULL);
 
-    // auto training_set = generate_training_set(&wordle_words, 50);
+        auto training_set = generate_training_set(&wordle_words, training_set_count);
+        auto population = new_random_population(pop_size);
+        int result = -1;
+        train_population(&population, training_set);
+        result = print_population_stats(population, 0);
+        for(int i = 0; i < iterations; i++)
+        {
+            population = advance_population(population, training_set, elite_count, cross_prob, mut_prob);
+            train_population(&population, training_set);
+            result = print_population_stats(population, i + 1);
+        }
 
-    // auto population = new_random_population(200);
-    // train_population(&population, training_set);
-    // print_population_stats(population, 0);
+        Individual best_guy = population[result];
+        printf("RESULT,%.4f,%.4f,%.4f\n",best_guy.w[0],best_guy.w[1],best_guy.w[2]);
+    }
+    else if(strcmp(argv[1], "test") == 0)
+    {
+        // Perform comparison routine. Compares performance of given individual against greedy approach. Returns all results in csv format
+        int test_count = atoi(argv[2]);
+        float w0 = strtof(argv[3], nullptr);
+        float w1 = strtof(argv[4], nullptr);
+        float w2 = strtof(argv[5], nullptr);
 
-    // for(int i = 0; i < 50; i++)
-    // {
-    //     population = advance_population(population, training_set, 20, 0.9f, 0.1f);
-    //     train_population(&population, training_set);
-    //     print_population_stats(population, i + 1);
-    // }
+        Individual guy;
+        guy.w[0] = w0; guy.w[1] = w1; guy.w[2] = w2;
+
+        auto test_set = generate_training_set(&wordle_words, test_count);
+
+        for(int i = 0; i < test_count; i++)
+        {
+           int result_greedy = solve_wordle_greedy(test_set[i]); 
+           int result_genetic = solve_wordle_genetic(test_set[i], guy);
+           printf("%d,%d,%d\n", i, result_greedy, result_genetic);
+        }
+    }
 
     return 0;
 }
