@@ -8,6 +8,7 @@
 #include <sstream>
 #include <inttypes.h>
 #include <algorithm>
+#include <unordered_map>
 
 using namespace std;
 
@@ -97,6 +98,144 @@ string evaluate_guess(const string& guess, const string& secret)
     }
     return result;
 }
+
+// GREEDY
+
+vector<unordered_map<char, float>> green_letter_distribution(const vector<string>& word_list)
+{
+    vector<unordered_map<char, float>> result = vector<unordered_map<char, float>>(5);
+    for(int i = 0; i < word_list.size(); i++)
+    {
+        string word = word_list[i];
+        for(int j = 0; j < word.size(); j++)
+        {
+            char key = word[j];
+            result[j][key] += 1.f;
+        }
+    }
+
+    for(int i = 0; i < 5; i++)
+    {
+        for(auto& it: result[i])
+        {
+            it.second /= word_list.size();
+        }
+    }
+    return result;
+}
+
+float green_letter_prob(const string& word, vector<unordered_map<char, float>>& gld)
+{
+    float result = 0;
+    for(int i = 0; i < word.size(); i++)
+    {
+        result += gld[i][word[i]];
+    }
+    return result;
+}
+
+int get_best_glp(const vector<string>& word_list, const vector<string>& past_guesses)
+{
+    int result = 0;
+    float best_glp = 0.f;
+    auto gld = green_letter_distribution(word_list);
+    for(int i = 0; i < word_list.size(); i++)
+    {
+        float glp = green_letter_prob(word_list[i], gld);
+        if(result == 0 || glp > best_glp)
+        {
+            bool found = false;
+            for(int j = 0; j < past_guesses.size(); j++)
+            {
+                if(past_guesses[j] == word_list[i])
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if(!found)
+            {
+                result = i;
+                best_glp = glp;
+            }
+        }
+    }
+    return result;
+}
+
+vector<char> letters_to_remove(const string& guess, const string& eval)
+{
+    vector<char> result;
+    for(int i = 0; i < guess.size(); i++)
+    {
+        if(eval[i] == '-')
+        {
+            bool found = false;
+            for(int j = 0; j < result.size(); j++)
+            {
+                if(result[j] == guess[i])
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) result.push_back(guess[i]);
+        }
+    }
+    return result;
+}
+
+void remove_letters_from_word_list(vector<string>& word_list, const vector<char>& unwanted)
+{
+    for(int i = word_list.size() - 1; i >= 0; i--)
+    {
+        string word = word_list[i];
+        bool remove_word = false;
+        for(int j = 0; j < word.size(); j++)
+        {
+            char c = word[j];
+            for(int k = 0; k < unwanted.size(); k++)
+            {
+                if(unwanted[k] == c)
+                {
+                    remove_word = true;
+                    break;
+                }
+            }
+            if(remove_word) break;
+        }
+        if(remove_word)
+        {
+            word_list.erase(word_list.begin() + i);
+        }
+    }
+}
+
+int solve_wordle_greedy(const WordleInstance& instance)
+{
+    int result = 0;
+    vector<string> past_guesses;
+    vector<string> word_list = *instance.word_list;
+    while(true)
+    {
+        int guess = get_best_glp(word_list, past_guesses);
+        past_guesses.push_back(word_list[guess]);
+        string guess_word = word_list[guess];
+        printf("[GREEDY] Guessing word %s...\n", guess_word.c_str());
+
+        result++;
+
+        string eval = evaluate_guess(guess_word, instance.get_word(instance.secret));
+        if(eval == string("GGGGG")) return result;
+
+        auto unwanted = letters_to_remove(guess_word, eval);
+        remove_letters_from_word_list(word_list, unwanted);
+    }
+    
+    return result;
+}
+
+// GENETIC
 
 struct WordleCurrentInfo
 {
@@ -256,8 +395,6 @@ bool update_wordle_info(const WordleInstance& instance, const int& guess, Wordle
     return result;
 }
 
-// GENETIC
-
 struct Individual
 {
     float w[3];
@@ -309,7 +446,7 @@ Individual mutate(const Individual& parent)
     return new_guy;
 }
 
-int solve_wordle(const WordleInstance& instance, const Individual& guy)
+int solve_wordle_genetic(const WordleInstance& instance, const Individual& guy)
 {
     // TODO(caio): Continue here. For some reason, wordle solving is taking waaaay too many tries.
     int result = 0;
@@ -353,7 +490,7 @@ float train_individual(const vector<WordleInstance>& training_instances, const I
     for(int i = 0; i < training_instances.size(); i++)
     {
         const WordleInstance& instance = training_instances[i];
-        result += solve_wordle(instance, guy);
+        result += solve_wordle_genetic(instance, guy);
     }
     return result / (float)training_instances.size();
 }
@@ -433,31 +570,26 @@ int main(int argc, char** argv)
 {
     wordle_words = read_word_list_file("../wordle_words.txt");
 
-    auto training_set = generate_training_set(&wordle_words, 50);
-
-    auto population = new_random_population(200);
-    train_population(&population, training_set);
-    print_population_stats(population, 0);
-
-    for(int i = 0; i < 50; i++)
+    WordleInstance instance =
     {
-        population = advance_population(population, training_set, 20, 0.9f, 0.1f);
-        train_population(&population, training_set);
-        print_population_stats(population, i + 1);
-    }
+        &wordle_words,
+        74
+    };
+    int result = solve_wordle_greedy(instance);
+    printf("[GREEDY] Solved in %d guesses.\n", result);
 
-    // auto guy = new_random_individual();
-    // auto instance = generate_wordle_instance(&wordle_words);
-    // int result = solve_wordle(instance, guy);
+    // auto training_set = generate_training_set(&wordle_words, 50);
 
-    // Individual guy;
-    // guy.w[0] = 0.5f; guy.w[1] = 0.2f; guy.w[2] = 0.1f;
-    // WordleInstance test_instance =
+    // auto population = new_random_population(200);
+    // train_population(&population, training_set);
+    // print_population_stats(population, 0);
+
+    // for(int i = 0; i < 50; i++)
     // {
-    //     &wordle_words,
-    //     61
-    // };
-    // int tries = solve_wordle(test_instance, guy);
-    // printf("Guy solved in %d tries\n", tries);
+    //     population = advance_population(population, training_set, 20, 0.9f, 0.1f);
+    //     train_population(&population, training_set);
+    //     print_population_stats(population, i + 1);
+    // }
+
     return 0;
 }
