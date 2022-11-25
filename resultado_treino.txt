@@ -1,4 +1,4 @@
-Melhor valor mutação: 0.3 -> Fitness: 4.0
+Melhor valor mutação: 0.4 -> Fitness: 4.0
 Melhor valor crossover: 0.9 -> Fitness: 4.0
 Melhor valor pop_size: 200 -> Fitness: 3.8
 Melhor valor iterações: 200 -> Fitness: 4.0

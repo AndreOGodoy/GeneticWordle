@@ -8,6 +8,7 @@ import asyncio
 from typing import List
 import subprocess
 import os
+import time
 
 class Tester:
     dict_sizes: List[int]
@@ -52,6 +53,7 @@ class Tester:
             self.clear_folder(param_folder)
 
         async def training(dict_path: str):
+            await asyncio.sleep(random.uniform(0, 3))
             command_with_dict = command + [dict_path]
             result = await asyncio.create_subprocess_shell(' '.join(command_with_dict), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = await result.communicate()
@@ -147,13 +149,8 @@ def wordle_perform_tests(test_count):
     plt.savefig(f'./out/test_greedy.png')
 
 async def main():
-    import time
-
     # Wordle word list size is ~2.3k
     tester = Tester(sizes=[200, 500, 1000, 2000], cpp_source_path='./cpp/wordle_main.cpp')
-    tester.get_training_stats()
-    return
-
     tester.populate_test_folder('./test_dicts')
 
     async_queue = []
@@ -169,6 +166,7 @@ async def main():
                             continue
                         async_queue.clear()
 
+    tester.get_training_stats()
 
 if __name__ == '__main__':
     asyncio.run(main())
