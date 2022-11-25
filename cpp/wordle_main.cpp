@@ -582,7 +582,7 @@ int main(int argc, char** argv)
         }
 
         Individual best_guy = population[result];
-        printf("RESULT,%.4f,%.4f,%.4f\n",best_guy.w[0],best_guy.w[1],best_guy.w[2]);
+        printf("RESULT,%.4f,%.4f,%.4f FITNESS:%.4f\n",best_guy.w[0],best_guy.w[1],best_guy.w[2], best_guy.fitness);
     }
     else if(strcmp(argv[1], "test") == 0)
     {

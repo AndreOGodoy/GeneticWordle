@@ -1,0 +1,6 @@
+Melhor valor mutação: 0.3 -> Fitness: 4.0
+Melhor valor crossover: 0.9 -> Fitness: 4.0
+Melhor valor pop_size: 200 -> Fitness: 3.8
+Melhor valor iterações: 200 -> Fitness: 4.0
+Melhor valor training_set: 3 -> Fitness: 3.6667
+Melhor valor dict_size: 2000 -> Fitness: 3.0
